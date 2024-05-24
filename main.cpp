@@ -33,7 +33,7 @@ int main (int argv, char* argc[]) {
     bool non_convergence = true;
     double tolerance = 1e-6;
     int max_iter = 1000;
-    int h = 0.1;
+    int h;
 
     if (rank == 0) {
 
@@ -104,7 +104,7 @@ int main (int argv, char* argc[]) {
                 }
 
                 MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
-                MPI_Send(local_U1[local_n[rank]].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
+                MPI_Send(local_U1[local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
 
                 for (int j = 0; j < local_n[rank]; j++) {
                     for (int k = 1; k < n - 1; k++) {
@@ -160,7 +160,7 @@ int main (int argv, char* argc[]) {
                 }
 
                 MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
-                MPI_Send(local_U1[local_n[rank]].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
+                MPI_Send(local_U1[local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
 
                 for (int j = 0; j < local_n[rank]; j++) {
                     MPI_Send(local_U1[j].data(), n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
@@ -224,7 +224,7 @@ int main (int argv, char* argc[]) {
 
 double compute_error (std::vector<std::vector<double>> local_U0, std::vector<std::vector<double>> local_U1, double h) {
 
-    double error = 0;
+    double error = 0.;
 
     for (std::size_t i = 0; i < local_U0.size(); i++) {
         for (std::size_t j = 0; j < local_U0[i].size(); j++) {
