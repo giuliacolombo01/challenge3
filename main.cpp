@@ -6,6 +6,9 @@
 #include <mpi.h>
 #include <omp.h>
 
+//VEDI CASO UNA SOLA RIGA
+//GESTISCI RIGA J+1
+
 const double pi = 3.14159265358979323846;
 
 std::function<double(std::vector<double>)> f = [] (std::vector<double> point) -> double {
@@ -106,18 +109,6 @@ int main (int argv, char* argc[]) {
                 MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
                 MPI_Send(local_U1[local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
 
-                for (int j = 0; j < local_n[rank]; j++) {
-                    for (int k = 1; k < n - 1; k++) {
-                        U[j][k] = local_U1[j][k];
-                    }
-                }
-
-                for (int r = 1; r < size; r++) {
-                    for (int j = 0; j < local_n[rank]; j++) {
-                        MPI_Recv(U[j + local_start_idx[r]].data(), n, MPI_DOUBLE, r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                    }
-                }
-
             } else if (rank != size - 1) {
                 
                 if (i == 0) {
@@ -162,10 +153,6 @@ int main (int argv, char* argc[]) {
                 MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
                 MPI_Send(local_U1[local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
 
-                for (int j = 0; j < local_n[rank]; j++) {
-                    MPI_Send(local_U1[j].data(), n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
-                }
-
             } else {
                 
                 if (i == 0) {
@@ -209,11 +196,27 @@ int main (int argv, char* argc[]) {
 
                 MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
 
+            }
+        } else {
+
+            if (rank == 0) {
+                for (int j = 0; j < local_n[rank]; j++) {
+                    for (int k = 1; k < n - 1; k++) {
+                        U[j][k] = local_U1[j][k];
+                    }
+                }
+
+                for (int r = 1; r < size; r++) {
+                    for (int j = 0; j < local_n[rank]; j++) {
+                        MPI_Recv(U[j + local_start_idx[r]].data(), n, MPI_DOUBLE, r, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    }
+                }
+            } else {
                 for (int j = 0; j < local_n[rank]; j++) {
                     MPI_Send(local_U1[j].data(), n, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
                 }
             }
-        } else {
+
             break;
         }
     }
