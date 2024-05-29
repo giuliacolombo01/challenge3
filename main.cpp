@@ -6,9 +6,6 @@
 #include <mpi.h>
 #include <omp.h>
 
-//VEDI CASO UNA SOLA RIGA
-//GESTISCI RIGA J+1
-
 const double pi = 3.14159265358979323846;
 
 std::function<double(std::vector<double>)> f = [] (std::vector<double> point) -> double {
@@ -20,7 +17,7 @@ std::function<double(std::vector<double>)> f = [] (std::vector<double> point) ->
     return result;
 };
 
-double compute_error (std::vector<std::vector<double>> local_U0, std::vector<std::vector<double>> local_U1, double h);
+double compute_error (std::vector<std::vector<double>> local_U0, std::vector<std::vector<double>> local_U1, double h, int rank, int size);
 
 int main (int argv, char* argc[]) {
 
@@ -77,7 +74,7 @@ int main (int argv, char* argc[]) {
             if (rank == 0) {
                 
                 if (i == 0) {
-                    local_U0.resize(local_n[rank]);
+                    local_U0.resize(local_n[rank] + 1);
                     local_U1.resize(local_n[rank]);
 
                     for (int j = 0; j < local_n[rank]; j++) {
@@ -85,6 +82,8 @@ int main (int argv, char* argc[]) {
                         local_U1[j].resize(n, 0.);
                     }
                 }
+
+                MPI_Recv(local_U0[local_n[rank]].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 for (int j = 1; j < local_n[rank]; j++) {
                     for (int k = 1; k < n - 1; k++) {
@@ -97,7 +96,7 @@ int main (int argv, char* argc[]) {
                     }
                 }
 
-                err = compute_error(local_U0, local_U1, h);
+                err = compute_error(local_U0, local_U1, h, rank, size);
                 non_convergence = (err > tolerance)? true: false;
 
                 for (int j = 1; j < local_n[rank]; j++) {
@@ -109,10 +108,10 @@ int main (int argv, char* argc[]) {
                 MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
                 MPI_Send(local_U1[local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
 
-            } else if (rank != size - 1) {
+            } else if (rank < size - 1) {
                 
                 if (i == 0) {
-                    local_U0.resize(local_n[rank]);
+                    local_U0.resize(local_n[rank] + 2);
                     local_U1.resize(local_n[rank]);
 
                     for (int j = 0; j < local_n[rank]; j++) {
@@ -121,42 +120,37 @@ int main (int argv, char* argc[]) {
                     }
                 }
 
-                MPI_Recv(previous_row.data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-                if (i == 0) {
-                    for (int j = 0; j < local_n[rank]; j++) {
-                        for (int k = 1; k < n - 1; k++) {
-                            local_U0[j][k] = U[j + local_start_idx[rank]][k];
-                        }
-                    }
-                }
-
-                for (int k = 1; k < n - 1; k++) {
-                        local_U1[0][k] = 0.25 * (previous_row[k] + local_U0[1][k] + local_U0[0][k - 1] + local_U0[0][k + 1] + h * h * f({static_cast<double>(local_start_idx[rank] * h), static_cast<double>(k * h)}));;
-                }
+                MPI_Recv(local_U0[0].data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(local_U0[local_n[rank] + 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 for (int j = 0; j < local_n[rank]; j++) {
                     for (int k = 1; k < n - 1; k++) {
-                        local_U1[j][k] = 0.25 * (local_U0[j - 1][k] + local_U0[j + 1][k] + local_U0[j][k - 1] + local_U0[j][k + 1] + h * h * f({static_cast<double>((local_start_idx[rank] + j) * h), static_cast<double>(k * h)}));
+
+                        if (i == 0) {
+                            local_U0[j][k] = U[j + local_start_idx[rank]][k];
+                        }
+
+                        local_U1[j][k] = 0.25 * (local_U0[j][k] + local_U0[j + 2][k] + local_U0[j + 1][k - 1] + local_U0[j + 1][k + 1] + h * h * f({static_cast<double>((local_start_idx[rank] + j) * h), static_cast<double>(k * h)}));
                     }
                 }
 
-                err = compute_error(local_U0, local_U1, h);
+                err = compute_error(local_U0, local_U1, h, rank, size);
                 non_convergence = (err > tolerance)? true: false;
 
                 for (int j = 0; j < local_n[rank]; j++) {
                     for (int k = 1; k < n - 1; k++) {
-                        local_U0[j][k] = local_U1[j][k];
+                        local_U0[j + 1][k] = local_U1[j][k];
                     }
                 }
 
                 MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
                 MPI_Send(local_U1[local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
+                MPI_Send(local_U1[0].data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
 
             } else {
                 
                 if (i == 0) {
-                    local_U0.resize(local_n[rank]);
+                    local_U0.resize(local_n[rank] + 1);
                     local_U1.resize(local_n[rank]);
 
                     for (int j = 0; j < local_n[rank]; j++) {
@@ -165,37 +159,30 @@ int main (int argv, char* argc[]) {
                     }
                 }
 
-                MPI_Recv(previous_row.data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-                if (i == 0) {
-                    for (int j = 0; j < local_n[rank] - 1; j++) {
-                        for (int k = 1; k < n - 1; k++) {
-                            local_U0[j][k] = U[j + local_start_idx[rank]][k];
-                        }
-                    }
-                }
-
-                for (int k = 1; k < n - 1; k++) {
-                        local_U1[0][k] = 0.25 * (previous_row[k] + local_U0[1][k] + local_U0[0][k - 1] + local_U0[0][k + 1] + h * h * f({static_cast<double>(local_start_idx[rank] * h), static_cast<double>(k * h)}));;
-                }
+                MPI_Recv(local_U0[0].data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 for (int j = 0; j < local_n[rank] - 1; j++) {
                     for (int k = 1; k < n - 1; k++) {
-                        local_U1[j][k] = 0.25 * (local_U0[j - 1][k] + local_U0[j + 1][k] + local_U0[j][k - 1] + local_U0[j][k + 1] + h * h * f({static_cast<double>((local_start_idx[rank] + j) * h), static_cast<double>(k * h)}));
+
+                        if (i == 0) {
+                            local_U0[j][k] = U[j + local_start_idx[rank]][k];
+                        }
+
+                        local_U1[j][k] = 0.25 * (local_U0[j][k] + local_U0[j + 2][k] + local_U0[j + 1][k - 1] + local_U0[j + 1][k + 1] + h * h * f({static_cast<double>((local_start_idx[rank] + j) * h), static_cast<double>(k * h)}));
                     }
                 }
 
-                err = compute_error(local_U0, local_U1, h);
+                err = compute_error(local_U0, local_U1, h, rank, size);
                 non_convergence = (err > tolerance)? true: false;
 
                 for (int j = 0; j < local_n[rank] - 1; j++) {
                     for (int k = 1; k < n - 1; k++) {
-                        local_U1[j][k] = local_U0[j][k];
+                        local_U1[j + 1][k] = local_U0[j][k];
                     }
                 }
 
                 MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
-
+                MPI_Send(local_U1[0].data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
             }
         } else {
 
@@ -225,13 +212,27 @@ int main (int argv, char* argc[]) {
     return 0;
 }
 
-double compute_error (std::vector<std::vector<double>> local_U0, std::vector<std::vector<double>> local_U1, double h) {
+double compute_error (std::vector<std::vector<double>> local_U0, std::vector<std::vector<double>> local_U1, double h, int rank, int size) {
 
     double error = 0.;
 
-    for (std::size_t i = 0; i < local_U0.size(); i++) {
-        for (std::size_t j = 0; j < local_U0[i].size(); j++) {
-            error += h * (local_U1[i][j] - local_U0[i][j]) * (local_U1[i][j] - local_U0[i][j]);
+    if (rank == 0) {
+        for (std::size_t i = 0; i < local_U1.size(); i++) {
+            for (std::size_t j = 0; j < local_U1[i].size(); j++) {
+                error += h * (local_U1[i][j] - local_U0[i][j]) * (local_U1[i][j] - local_U0[i][j]);
+            }
+        }
+    } else if (rank < size - 1) {
+        for (std::size_t i = 0; i < local_U1.size() - 1; i++) {
+            for (std::size_t j = 0; j < local_U1[i].size(); j++) {
+                error += h * (local_U1[i][j] - local_U0[i + 1][j]) * (local_U1[i][j] - local_U0[i + 1][j]);
+            }
+        }
+    } else {
+        for (std::size_t i = 0; i < local_U1.size(); i++) {
+            for (std::size_t j = 0; j < local_U1[i].size(); j++) {
+                error += h * (local_U1[i][j] - local_U0[i + 1][j]) * (local_U1[i][j] - local_U0[i + 1][j]);
+            }
         }
     }
 
