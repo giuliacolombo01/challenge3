@@ -33,7 +33,7 @@ int main (int argv, char* argc[]) {
     bool non_convergence = true;
     double tolerance = 1e-6;
     int max_iter = 1000;
-    int h;
+    double h;
 
     if (rank == 0) {
 
@@ -51,7 +51,7 @@ int main (int argv, char* argc[]) {
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    h = 1 / (n - 1);
+    h = 1.0 / (n - 1);
 
     int start_idx = 0;
     std::vector<int> local_n(size);
@@ -64,7 +64,6 @@ int main (int argv, char* argc[]) {
     
     std::vector<std::vector<double>> local_U0;
     std::vector<std::vector<double>> local_U1;
-    std::vector<double> previous_row(n, 0.);
     double err = 0.;
 
     for (int i = 0; i < max_iter; ++i) {
@@ -81,17 +80,19 @@ int main (int argv, char* argc[]) {
                         local_U0[j].resize(n, 0.);
                         local_U1[j].resize(n, 0.);
                     }
+                    local_U0[local_n[rank]].resize(n, 0.);
+
+                    for (int j = 0; j < local_n[rank]; j++) {
+                        for (int k = 1; k < n - 1; k++) {
+                            local_U0[j][k] = U[j][k];
+                        }
+                    }
                 }
 
                 MPI_Recv(local_U0[local_n[rank]].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 for (int j = 1; j < local_n[rank]; j++) {
                     for (int k = 1; k < n - 1; k++) {
-
-                        if (i == 0) {
-                            local_U0[j][k] = U[j][k];
-                        }
-
                         local_U1[j][k] = 0.25 * (local_U0[j - 1][k] + local_U0[j + 1][k] + local_U0[j][k - 1] + local_U0[j][k + 1] + h * h * f({static_cast<double>(j * h), static_cast<double>(k * h)}));
                     }
                 }
@@ -105,7 +106,6 @@ int main (int argv, char* argc[]) {
                     }
                 }
 
-                MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
                 MPI_Send(local_U1[local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
 
             } else if (rank < size - 1) {
@@ -118,6 +118,14 @@ int main (int argv, char* argc[]) {
                         local_U0[j].resize(n, 0.);
                         local_U1[j].resize(n, 0.);
                     }
+                    local_U0[local_n[rank]].resize(n, 0.);
+                    local_U0[local_n[rank] + 1].resize(n, 0.);
+
+                    for (int j = 0; j < local_n[rank]; j++) {
+                        for (int k = 1; k < n - 1; k++) {
+                            local_U0[j + 1][k] = U[j + local_start_idx[rank]][k];
+                        }
+                    }
                 }
 
                 MPI_Recv(local_U0[0].data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -125,11 +133,6 @@ int main (int argv, char* argc[]) {
 
                 for (int j = 0; j < local_n[rank]; j++) {
                     for (int k = 1; k < n - 1; k++) {
-
-                        if (i == 0) {
-                            local_U0[j][k] = U[j + local_start_idx[rank]][k];
-                        }
-
                         local_U1[j][k] = 0.25 * (local_U0[j][k] + local_U0[j + 2][k] + local_U0[j + 1][k - 1] + local_U0[j + 1][k + 1] + h * h * f({static_cast<double>((local_start_idx[rank] + j) * h), static_cast<double>(k * h)}));
                     }
                 }
@@ -143,9 +146,8 @@ int main (int argv, char* argc[]) {
                     }
                 }
 
-                MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
-                MPI_Send(local_U1[local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
                 MPI_Send(local_U1[0].data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
+                MPI_Send(local_U1[local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
 
             } else {
                 
@@ -157,17 +159,19 @@ int main (int argv, char* argc[]) {
                         local_U0[j].resize(n, 0.);
                         local_U1[j].resize(n, 0.);
                     }
+                    local_U0[local_n[rank]].resize(n, 0.);
+
+                    for (int j = 0; j < local_n[rank] - 1; j++) {
+                        for (int k = 1; k < n - 1; k++) {
+                            local_U0[j + 1][k] = U[j + local_start_idx[rank]][k];
+                    }
+                    }
                 }
 
                 MPI_Recv(local_U0[0].data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
                 for (int j = 0; j < local_n[rank] - 1; j++) {
                     for (int k = 1; k < n - 1; k++) {
-
-                        if (i == 0) {
-                            local_U0[j][k] = U[j + local_start_idx[rank]][k];
-                        }
-
                         local_U1[j][k] = 0.25 * (local_U0[j][k] + local_U0[j + 2][k] + local_U0[j + 1][k - 1] + local_U0[j + 1][k + 1] + h * h * f({static_cast<double>((local_start_idx[rank] + j) * h), static_cast<double>(k * h)}));
                     }
                 }
@@ -181,9 +185,11 @@ int main (int argv, char* argc[]) {
                     }
                 }
 
-                MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
                 MPI_Send(local_U1[0].data(), n, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
             }
+
+            MPI_Bcast(&non_convergence, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
+
         } else {
 
             if (rank == 0) {
@@ -222,14 +228,8 @@ double compute_error (std::vector<std::vector<double>> local_U0, std::vector<std
                 error += h * (local_U1[i][j] - local_U0[i][j]) * (local_U1[i][j] - local_U0[i][j]);
             }
         }
-    } else if (rank < size - 1) {
-        for (std::size_t i = 0; i < local_U1.size() - 1; i++) {
-            for (std::size_t j = 0; j < local_U1[i].size(); j++) {
-                error += h * (local_U1[i][j] - local_U0[i + 1][j]) * (local_U1[i][j] - local_U0[i + 1][j]);
-            }
-        }
     } else {
-        for (std::size_t i = 0; i < local_U1.size(); i++) {
+        for (std::size_t i = 0; i < local_U1.size() - 1; i++) {
             for (std::size_t j = 0; j < local_U1[i].size(); j++) {
                 error += h * (local_U1[i][j] - local_U0[i + 1][j]) * (local_U1[i][j] - local_U0[i + 1][j]);
             }
