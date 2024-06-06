@@ -22,22 +22,22 @@ To run and compile this code there's a Makefile, so it sufficies to do (in this 
 
 `main1.cpp` solves the iterative algorithm in the same way of the previous one, but now there's no input by the user.
 
-`scalability.sh` compiles and executes the program with a different number of processors (PROCS) on a grid of dimesion N. These parameters can be changed in the code by the user.
+`scalability.sh` compiles and executes the program with a different number of processors (PROCS) on a grid of dimension N. These parameters can be changed in the code by the user.
 
 `plot.py` creates two graphs to see the execution time and the L2-norm in function of the number of processors.
 
 ## Second code - how to run
 
-To compile this code, to run all the test and to create the two plot you have to do (in this order):
+To compile this code, to run all the tests and to create the two plots you have to do (in this order):
 ```bash
    mpicxx -fopenmp -o main1 main1.cpp
 ```
-This compiles the code and creates the executable.
+This compiles the code and creates the executable. Then:
 
 ```bash
   mkdir data
 ```
-This creates the directory for the data.
+This creates the directory for the data. At last:
 
 ```bash
   ./scalability.sh
@@ -45,7 +45,7 @@ This creates the directory for the data.
 ```bash
   python plot.py
 ```
-It may be necessary to install the library matplotlib before running this last command; in this case do
+It may be necessary to install the library matplotlib before running this last command; in this case do:
 ```bash
   pip install --user matplotlib
 ```
