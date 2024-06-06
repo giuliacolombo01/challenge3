@@ -94,6 +94,7 @@ double norm2 (double h, std::vector<std::vector<double>>& U, int n) {
     * \param filename Name of the VTK file
 */
 void toVTK(const std::vector<std::vector<double>>& U, int n, double h, const std::string& filename) {
+   
     std::ofstream file(filename);
 
     file << "# vtk DataFile Version 2.0\n";
@@ -126,38 +127,14 @@ int main (int argc, char* argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &max_size);
 
-    int n = 0;
-    int size = 0;
+    int n = std::stoi(argv[1]);
+    int size = std::stoi(argv[2]);
+    
 
-    std::vector<std::vector<double>> U;
-    std::vector<std::vector<double>> Unext;
+    if (size > max_size) {
+        std::cerr << "Invalid size" << std::endl;
 
-    bool non_convergence = true;
-    double tolerance = 1e-6;
-    int max_iter = 1000;
-    double h;
-
-    if (rank == 0) {
-
-        std::cout << "Enter the size of the matrix: ";
-        std::cin >> n;
-        std::cout << "Enter the number of parallel tasks: ";
-        std::cin >> size;
-
-        if (size > max_size) {
-            std::cerr << "Invalid size" << std::endl;
-
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }   
-
-        U.resize(n);
-        for (int i = 0; i < n; i++) {
-            U[i].resize(n, 0.);
-        }
-        Unext.resize(n);
-        for (int i = 0; i < n; i++) {
-            Unext[i].resize(n, 0.);
-        }
+        MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
     if (rank >= size) {
@@ -165,8 +142,17 @@ int main (int argc, char* argv[]) {
         return 0;
     }
 
-    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    std::vector<std::vector<double>> U(n);
+    std::vector<std::vector<double>> Unext(n);
+    for (int i = 0; i < n; i++) {
+            U[i].resize(n, 0.);
+            Unext[i].resize(n, 0.);
+    }
+
+    bool non_convergence = true;
+    double tolerance = 1e-6;
+    int max_iter = 1000;
+    double h;
 
     h = 1.0 / (n - 1);
 
@@ -279,12 +265,17 @@ int main (int argc, char* argv[]) {
 
             break;
         }
+    }
 
-        if (rank == 0) {
-            toVTK(U, n, h, "solution_" + std::to_string(size) + ".vtk");
-            std::cout << "L2-norm of the error: " << norm2(h, U, n) << std::endl;
-            std::cout << "Execution time: "<<time.wallTime() << " microseconds" << std::endl;
-        }
+    if (rank == 0) {
+        std::string filename = "data/result_" + std::to_string(size) + ".txt";
+        std::ofstream result(filename);
+        toVTK(U, n, h, "solution_" + std::to_string(size) + ".vtk");
+        result << "Matrix size: " << n << "\n";
+        result << "Number of processors: " << size << "\n";
+        result << "L2-norm of the error: " << norm2(h, U, n) << "\n";
+        result << "Execution time: " << time.wallTime() << " microseconds" << "\n";
+        result.close();
     }
     
     MPI_Finalize();
