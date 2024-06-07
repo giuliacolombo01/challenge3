@@ -80,7 +80,7 @@ double norm2 (double h, std::vector<std::vector<double>>& U, int n) {
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < n; ++j) {
             std::vector<double> point = {i * h, j * h};
-            error += (f(point) - U[i][j]) * (f(point) - U[i][j]);
+            error += (uex(point) - U[i][j]) * (uex(point) - U[i][j]);
         }
     }
 
@@ -130,7 +130,6 @@ int main (int argc, char* argv[]) {
     int n = std::stoi(argv[1]);
     int size = std::stoi(argv[2]);
     
-
     if (size > max_size) {
         std::cerr << "Invalid size" << std::endl;
 
@@ -142,27 +141,21 @@ int main (int argc, char* argv[]) {
         return 0;
     }
 
-    std::vector<std::vector<double>> U(n);
-    std::vector<std::vector<double>> Unext(n);
-    for (int i = 0; i < n; i++) {
-            U[i].resize(n, 0.);
-            Unext[i].resize(n, 0.);
-    }
+    std::vector<std::vector<double>> U(n, std::vector<double>(n, 0.));
+    std::vector<std::vector<double>> Unext(n, std::vector<double>(n, 0.));
 
     bool non_convergence = true;
     double tolerance = 1e-6;
     int max_iter = 1000;
-    double h;
-
-    h = 1.0 / (n - 1);
+    double h = 1.0 / (n - 1);;
 
     int start_idx = 0;
 
     Chrono time;
     time.start();
 
-    std::vector<int> local_n(size);
-    std::vector<int> local_start_idx(size);
+    std::vector<int> local_n(size, 0);
+    std::vector<int> local_start_idx(size, 0);
     for (int i = 0; i < size; i++) {
         local_n[i] = (n % size > i)? n / size + 1: n / size;
         local_start_idx[i] = start_idx;
@@ -179,13 +172,21 @@ int main (int argc, char* argv[]) {
                 
                 if (size > 1) {
                     MPI_Send(U[local_start_idx[rank] + local_n[rank] - 1].data(), n, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
-                }
 
-                #pragma omp parallel for collapse(2)
-                for (int i = 1; i < local_n[rank]; i++) {
-                    for (int j = 1; j < n - 1; j++) {
-                        std::vector<double> point = {(local_start_idx[rank] + i) * h, j * h};
-                        Unext[local_start_idx[rank] + i][j] = 0.25 * (U[local_start_idx[rank] + i - 1][j] + U[local_start_idx[rank] + i + 1][j] + U[local_start_idx[rank] + i][j - 1] + U[local_start_idx[rank] + i][j + 1] + h * h * f(point));
+                    #pragma omp parallel for collapse(2)
+                    for (int i = 1; i < local_n[rank]; i++) {
+                        for (int j = 1; j < n - 1; j++) {
+                            std::vector<double> point = {(local_start_idx[rank] + i) * h, j * h};
+                            Unext[local_start_idx[rank] + i][j] = 0.25 * (U[local_start_idx[rank] + i - 1][j] + U[local_start_idx[rank] + i + 1][j] + U[local_start_idx[rank] + i][j - 1] + U[local_start_idx[rank] + i][j + 1] + h * h * f(point));
+                        }
+                    }
+                } else {
+                    #pragma omp parallel for collapse(2)
+                    for (int i = 1; i < local_n[rank] - 1; i++) {
+                        for (int j = 1; j < n - 1; j++) {
+                            std::vector<double> point = {(local_start_idx[rank] + i) * h, j * h};
+                            Unext[local_start_idx[rank] + i][j] = 0.25 * (U[local_start_idx[rank] + i - 1][j] + U[local_start_idx[rank] + i + 1][j] + U[local_start_idx[rank] + i][j - 1] + U[local_start_idx[rank] + i][j + 1] + h * h * f(point));
+                        }
                     }
                 }
 
