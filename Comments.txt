@@ -1,0 +1,28 @@
+README:
+  If the output is not working, please write it in the README.
+
+pi: for having pi it is better to:
+
+#include <numbers>
+std::numbers::pi
+
+or with constexpr instead of const, but stick with the header numbers.
+
+Code design:
+  main.cpp => the fact that you are allowing the user to employ less resources then the one provided at run time is a VERY BAD IDEA.
+ Please always keep max_size = size.
+
+  main1.cpp => sorry but it doesn't compile
+
+  Also, another design would have put both the main.cpp and the main1.cpp in the makefile, with the user only having to tyke:
+  make main
+  make main1
+
+  There is a bug somewhere in the code. Running the code with two cores shows no proper reconstruction of the solution.
+  The code on one core seems to be working, but further testing is required.
+
+Code output:
+  the vtk cannot be opened in your original code.
+  After a small debugging, indeed the vtk is wrong. It seems to me that you have a reconstruction problem and a problem in getting the right solution. The function to generate the vtk file provided: how can it be wrong?
+
+

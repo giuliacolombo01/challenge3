@@ -102,12 +102,12 @@ void toVTK(const std::vector<std::vector<double>>& U, int n, double h, const std
     file << "DATASET STRUCTURED_POINTS\n";
     file << "DIMENSIONS " << n << " " << n << " 1\n";
     file << "ORIGIN 0 0 0\n";
-    file << "SPACING" << h << " " << h << "\n";
+    file << "SPACING " << h << " " << h << "1\n";
     file << "POINT_DATA " << n * n << "\n";
     file << "SCALARS solution double\n";
     file << "LOOKUP_TABLE default\n";
 
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < n; ++j) {
             file << U[i][j] << " ";
